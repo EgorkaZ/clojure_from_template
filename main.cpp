@@ -1,65 +1,53 @@
 #include <iostream>
+#include <utility>
+#include <string_view>
 
 #include "Bool.h"
 #include "Int.h"
 #include "Operators.h"
 #include "List.h"
+#include "Vector.h"
 
 
 template<class C, class Type>
 using Isa = Bool<std::is_same_v<typename C::Type, Type>>;
 
-namespace types {
-    struct VectorType;
-}
+// template<class Curr, long I, long Size, template<class...> class Func, class...Vectors>
+// struct MapvImpl {
+//     using type = std::conditional_t<I < Size,
+//         typename MapvImpl<typename Curr::template Append<Func<typename Vectors::template Nth<Int<I>>...>>, I + 1, Size, Func, Vectors...>::type, 
+//         Curr>;
+// };
 
-template<class, class> struct Vector;
+template<class, template<class...> class, class...> struct MapvImpl;
 
-template<class Last, class FirstPart = EmptyColl<Vector>>
-struct Vector
+template<long...Is, template<class...> class Func, class... Vectors>
+struct MapvImpl<std::index_sequence<Is...>, Func, Vectors...>
 {
-    using Type = types::VectorType;
-    using This = Vector<Last, FirstPart>;
-    using Peek = Last;
-    using Pop = FirstPart;
-
-    using Count = Int<Pop::Count::value + 1>;
-    using Empty = False;
-    using NotEmpty = True;
-
-    template<class New>
-    using Cons = Vector<New, This>;
-
-    template<class Idx>
-    using Nth = IfThen<Eq<typename Count::template Sub<Idx>, Int<1>>, Peek, typename Pop::template Nth<Idx>>;
-
-    template<class Searched, class Curr = Int<0>>
-    using IndexOf = IfThen<Eq<Searched, Peek>, typename Pop::Count, typename Pop::template IndexOf<Searched, typename Curr::template Add<Int<1>>>>;
-
-
-    static void Print(std::string_view delimeter = "")
-    {
-        constexpr std::string_view comma = Isa<Pop, types::EmptyCollType>::value ? "" : ", ";
-        Pop::Print(comma);
-        Peek::Print(delimeter);
-    }
+    template<long Idx, class...VecPack>
+    using NthVector = Func<typename VecPack::template Nth<Int<Idx>>...>;
+    using type = Vector<NthVector<Is, Vectors...>...>;
 };
 
-template<class Curr, class...Elements> struct CreateVectorAT;
-template<class...Elements>
-using CreateVector = typename CreateVectorAT<EmptyColl<Vector>, Elements...>::type;
-
-template<class Curr, class Head, class...Tail>
-struct CreateVectorAT<Curr, Head, Tail...>
+template<class...Vectors>
+struct GetSize
 {
-    using type = typename CreateVectorAT<typename Curr::template Cons<Head>, Tail...>::type;
+    static constexpr long Size = (Vectors::Count::value, ...);
+    static_assert(((Vectors::Count::value) == ...), "vectors should have equal size");
 };
 
-template<class Curr, class Last>
-struct CreateVectorAT<Curr, Last>
-{
-    using type = typename Curr::template Cons<Last>;
+template<template<class...> class Func, class Vector> 
+struct MapvDelegator;
+
+template<template<class...> class Func, class...Vectors>
+struct MapvDelegator<Func, Vector<Vectors...>>{
+    static constexpr long Size = (Vectors::Count::value,...);
+    static_assert((Vectors::Count::value == ...), "vectors should have equal sizes");
+    using type = typename MapvImpl<std::make_index_sequence<Size>, Func, Vectors...>::type;
 };
+
+template<template<class...> class Func, class Arg>
+using Mapv = typename MapvDelegator<Func, Arg>::type;
 
 #define EXPECT_EQ(lhs, rhs) static_assert((lhs) == (rhs))
 
@@ -71,6 +59,7 @@ int main() {
     using two = Int<2>;
     using three = Int<3>;
     using four = Int<4>;
+    using five = Int<5>;
 
     EXPECT_EQ(l::Count::value, 3);
     EXPECT_EQ(l::Nth<two>::value, 2);
@@ -82,20 +71,20 @@ int main() {
 
     l1::Print("\n");
 
-    using v = CreateVector<zero, one, two>;
-    v::Nth<zero>::Print(", ");
-    v::Nth<one>::Print(", ");
-    v::Nth<two>::Print("\n");
+    using v = Vector<one, two, three>;
+    v::Print("\n");
 
-    EXPECT_EQ(v::Count::value, 3);
-    EXPECT_EQ(v::Nth<two>::value, 2);
+using matrix = Vector<Vector<zero, one, two>, Vector<one, two, three>>;
 
-    using v1 = v::Cons<Int<3>>::Cons<Int<4>>;
+Mapv<Vector, matrix>::Print();
 
-    v1::Print("\n");
+    EXPECT_EQ(v::Nth<zero>::value, 1);
+    EXPECT_EQ(v::Nth<two>::value, 3);
+    EXPECT_EQ((v::Append<four, five>::Peek::value), 5);
 
-    EXPECT_EQ(v1::Nth<three>::value, 3);
-    EXPECT_EQ(v1::IndexOf<four>::value, 4);
+    EXPECT_EQ(v::Peek::value, 3);
+
+
     
     return 0;
 }
