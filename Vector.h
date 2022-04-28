@@ -94,6 +94,9 @@ struct Vector
     template<class Idx>
     using ToNth = ToImpl<Vector<>, Idx::value, Els...>;
 
+    template<template<class...> class Func, class Accum>
+    struct ReduceImpl{ using Res = }
+
     static void Print(std::string_view delimeter = "\n")
     {
         std::cout << "[ ";
